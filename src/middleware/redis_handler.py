@@ -67,7 +67,6 @@ class RedisHandler:
                     MAX(timestamp) as timestamp
                 FROM daily_prices_agg
                 GROUP BY symbol 
-                LIMIT 100
             """
             self.pg_cursor.execute(query)
             result = self.pg_cursor.fetchall()
