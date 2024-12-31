@@ -1,3 +1,6 @@
 # StockAPI
 
-Developing a real-time financial data pipeline utilizing Kafka, Redis, and PostgreSQL to stream live trade information to a front-end dashboard through REST APIs.
+Developing a real-time pipeline to stream live trade information from a websocket to a front-end UI, exposing data through REST API's.
+
+Stack:
+Python, Kafka, Websockets, FastAPI, Redis, PostgreSQL, Docker, Kubernetes, Kong API Gateway 
