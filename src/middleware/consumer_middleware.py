@@ -2,9 +2,7 @@ import json
 from confluent_kafka import Consumer
 import logging 
 import psycopg2
-import redis
 from datetime import datetime, timedelta 
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -28,7 +26,6 @@ class Middleware:
             port=5433
         ) 
         self.pg_cursor = self.pg_conn.cursor()
-        self.redis_client = redis.Redis(host='localhost', port=6379, db=0)
         self.create_table()
 
     def create_table(self):
@@ -74,16 +71,6 @@ class Middleware:
             self.pg_conn.rollback()
             logger.error(f'PG Push error: {e}')
 
-    def redis_push(self, trades):
-        try:
-            for trade in trades:
-                key = f'Latest Trade: {trade['symbol']}'
-                data = json.dumps(trade)
-                self.redis_client.set(key, data)
-                self.redis_client.expire(key, 3600) #1 hour
-        except Exception as e:
-            logger.info(f'Redis push error, {e}')
-
     def transform_data(self, trade_data):
         transformed_data = []
 
@@ -109,7 +96,6 @@ class Middleware:
             if trade_data['type'] == 'trade' and trade_data.get('data'): 
                 transformed_trades = self.transform_data(trade_data['data'])
                 self.postgres_push(transformed_trades)
-                self.redis_push(transformed_trades)
                 
                 logger.info(f'Processed {len(transformed_trades)}')
         except ValueError as e:
@@ -138,12 +124,7 @@ class Middleware:
         finally:
             self.consumer.close()
             self.pg_conn.close()
-            self.redis_client.close()
     
 if __name__ == "__main__":
     middleware = Middleware()
     middleware.run()
-
-
-    
-    
