@@ -12,7 +12,7 @@ import time
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-env_path = Path("configs/.env")
+env_path = Path("../../configs/.env")
 success = load_dotenv(dotenv_path=env_path)
 WEBSOCKET_SECRET = os.getenv('WEBSOCKET_SECRET')
 
