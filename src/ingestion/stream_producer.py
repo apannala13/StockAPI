@@ -100,7 +100,3 @@ if __name__ == "__main__":
         logger.info(f"error occured during run, {e}")
     finally:
         logger.info("Application stopped")
-
-
-
- 
