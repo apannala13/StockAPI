@@ -44,17 +44,30 @@ class RedisHandler:
     def fetch_ticker_data(self):
         try:
             query = """
+                WITH daily_prices_agg AS(
+                    SELECT 
+                        symbol, 
+                        price, 
+                        volume,
+                        timestamp,
+                        FIRST_VALUE(price) OVER w as open_price, 
+                        LAST_VALUE(price) OVER w as close_price
+                    FROM trades 
+                    WHERE DATE(timestamp) = CURRENT_DATE
+                    WINDOW w AS (PARTITION BY symbol ORDER BY timestamp 
+                        ROWS BETWEEN UNBOUNDED PRECEDING AND UNBOUNDED FOLLOWING)
+                )
                 SELECT 
                     symbol, 
                     MAX(price) as high, 
                     MIN(price) as low, 
-                    FIRST_VALUE(price) OVER(PARTITION BY symbol ORDER BY timestamp) as open, 
-                    LAST_VALUE(price) OVER(PARTITION BY symbol ORDER BY timestamp) as close,
-                    SUM(volume) as volume, 
-                    MAX(timestamp) as timestamp 
-                FROM trades 
-                WHERE DATE(timestamp) = CURRENT_DATE
-                GROUP BY symbol, price, timestamp
+                    MAX(open_price) as open,
+                    MIN(open_price) as close, 
+                    SUM(volume) as volume,
+                    MAX(timestamp) as timestamp
+                FROM daily_prices_agg
+                GROUP BY symbol 
+                LIMIT 100
             """
             self.pg_cursor.execute(query)
             result = self.pg_cursor.fetchall()
@@ -78,7 +91,6 @@ class RedisHandler:
                     'volume':row[5], 
                     'timestamp':row[6]
                 }
-                print(symbol, trade_data)
                 trade_data = json.dumps(trade_data, cls=JSONEncoder)
                 self.redis_client.set(symbol, trade_data)
                 logger.info(f"successfully stored data for {symbol} in redis")
