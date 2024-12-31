@@ -4,6 +4,9 @@ import logging
 import os 
 from dotenv import load_dotenv
 from pathlib import Path 
+import json 
+from decimal import Decimal 
+import datetime 
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -12,6 +15,15 @@ env_path = Path("../../configs/.env")
 success = load_dotenv(dotenv_path=env_path)
 postgres_user = os.getenv('POSTGRES_USER')
 postgres_pw = os.getenv('POSTGRES_PASSWORD')
+
+
+class JSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Decimal):
+            return float(obj)
+        elif isinstance(obj, (datetime.datetime, datetime.date)):
+            return obj.isoformat()
+        return json.JSONEncoder.default(self, obj)
 
 class RedisHandler:
     def __init__(self):
@@ -29,29 +41,53 @@ class RedisHandler:
             port=6379, 
             db=0
         )
-
-    def fetch_ticker_data(self, symbol):
+    def fetch_ticker_data(self):
         try:
             query = """
-                SELECT * 
+                SELECT 
+                    symbol, 
+                    MAX(price) as high, 
+                    MIN(price) as low, 
+                    FIRST_VALUE(price) OVER(PARTITION BY symbol ORDER BY timestamp) as open, 
+                    LAST_VALUE(price) OVER(PARTITION BY symbol ORDER BY timestamp) as close,
+                    SUM(volume) as volume, 
+                    MAX(timestamp) as timestamp 
                 FROM trades 
-                WHERE symbol = %s
-                LIMIT 10
+                WHERE DATE(timestamp) = CURRENT_DATE
+                GROUP BY symbol, price, timestamp
             """
-            self.pg_cursor.execute(query, (symbol,))
+            self.pg_cursor.execute(query)
             result = self.pg_cursor.fetchall()
             return result 
         except Exception as e:
             logger.error(f'error, {e}')
-    
-    def push_to_redis(self, symbol, data):
-        pass 
 
+    def push_to_redis(self):
+        query_result = self.fetch_ticker_data()
+        if not query_result:
+            logger.error(f'Could not fetch query results')
+            return 
+        try:
+            for row in query_result:
+                symbol = row[0]
+                trade_data = {
+                    'high':row[1], 
+                    'low':row[2], 
+                    'open':row[3], 
+                    'close':row[4], 
+                    'volume':row[5], 
+                    'timestamp':row[6]
+                }
+                print(symbol, trade_data)
+                trade_data = json.dumps(trade_data, cls=JSONEncoder)
+                self.redis_client.set(symbol, trade_data)
+                logger.info(f"successfully stored data for {symbol} in redis")
+            return True 
+        except Exception as e:
+            logger.error(f'failed to store data in redis: {str(e)}')
+            return False 
 
-if __name__ == '__main__':
+if __name__ == '__main__':  
     handler = RedisHandler()
-    symbol = 'AAPL'
-    result = handler.fetch_ticker_data(symbol)
+    result = handler.push_to_redis()
     print(result)
-
-
