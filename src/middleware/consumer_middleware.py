@@ -7,8 +7,10 @@ from datetime import datetime, timedelta
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-postgres_user = 'postgres' 
-postgres_pw = 'admin' 
+env_path = Path("../../configs/.env")
+success = load_dotenv(dotenv_path=env_path)
+postgres_user = os.getenv('POSTGRES_USER')
+postgres_pw = os.getenv('POSTGRES_PASSWORD')
 
 class Middleware:
     def __init__(self):
